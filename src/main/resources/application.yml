@@ -74,5 +74,4 @@ kafka:
   topics:
     order-confirmed: order.confirmed
     ticket-generated: ticket.generated
-    event-created: event.created
     event-cancelled: event.cancelled

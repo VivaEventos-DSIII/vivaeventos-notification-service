@@ -1,9 +1,7 @@
 package com.vivaeventos.notificationservice.consumer;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.vivaeventos.notificationservice.dto.EventoCanceladoEvent;
-import com.vivaeventos.notificationservice.dto.EventoCreadoEvent;
 import com.vivaeventos.notificationservice.dto.PagoConfirmadoEvent;
 import com.vivaeventos.notificationservice.dto.TicketGeneradoEvent;
 import com.vivaeventos.notificationservice.service.NotificationService;
@@ -15,9 +13,12 @@ import org.springframework.stereotype.Component;
 /**
  * Consumidor de Kafka.
  *
- * Recibe el mensaje como String y lo deserializa manualmente con ObjectMapper.
- * Esto evita el error "RecordDeserializationException" que ocurre cuando
- * el deserializador automático de Kafka no sabe a qué clase convertir el JSON.
+ * FIX calidad: ObjectMapper se inyecta como bean de Spring en lugar de
+ * instanciarse manualmente. Esto respeta la configuración global de Jackson
+ * (fechas, módulos, etc.) definida en el contexto de Spring.
+ *
+ * FIX US-09: eliminado el listener de event.created — el recordatorio
+ * ahora se programa en sendTicketGenerado, donde sí hay email del comprador.
  */
 @Slf4j
 @Component
@@ -26,13 +27,13 @@ public class NotificationConsumer {
 
     private final NotificationService notificationService;
 
-    // ObjectMapper con soporte para LocalDateTime (JavaTimeModule)
-    private final ObjectMapper objectMapper = new ObjectMapper()
-            .registerModule(new JavaTimeModule());
+    // FIX: ObjectMapper inyectado por Spring, no instanciado manualmente.
+    // Spring Boot autoconfigura este bean con JavaTimeModule y otras configuraciones globales.
+    private final ObjectMapper objectMapper;
 
     /**
-     * US-08: Confirmación de compra.
-     * Topic: order.confirmed
+     * US-08: Confirmación de pago.
+     * Topic: order.confirmed → envía email de confirmación de compra.
      */
     @KafkaListener(
             topics = "${kafka.topics.order-confirmed}",
@@ -49,7 +50,8 @@ public class NotificationConsumer {
     }
 
     /**
-     * US-08: Boleta generada con detalles del evento.
+     * US-08: Boleta generada.
+     * US-09: También programa el recordatorio 24h antes (con email real del comprador).
      * Topic: ticket.generated
      */
     @KafkaListener(
@@ -63,25 +65,6 @@ public class NotificationConsumer {
             notificationService.sendTicketGenerado(event);
         } catch (Exception e) {
             log.error("Error procesando [ticket.generated]: {}", e.getMessage());
-        }
-    }
-
-    /**
-     * US-09: Programar recordatorio 24h antes del evento.
-     * Topic: event.created
-     */
-    @KafkaListener(
-            topics = "${kafka.topics.event-created}",
-            groupId = "${spring.kafka.consumer.group-id}"
-    )
-    public void onEventoCreado(String payload) {
-        try {
-            EventoCreadoEvent event = objectMapper.readValue(payload, EventoCreadoEvent.class);
-            log.info("Evento recibido [event.created] eventId={} fecha={}",
-                    event.eventId(), event.eventDate());
-            notificationService.scheduleRecordatorio(event);
-        } catch (Exception e) {
-            log.error("Error procesando [event.created]: {}", e.getMessage());
         }
     }
 
