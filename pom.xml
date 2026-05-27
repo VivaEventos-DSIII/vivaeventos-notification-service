@@ -43,7 +43,6 @@
             <groupId>org.flywaydb</groupId>
             <artifactId>flyway-core</artifactId>
         </dependency>
-        <!-- Requerido con Flyway 10+ (Spring Boot 3.3+) -->
         <dependency>
             <groupId>org.flywaydb</groupId>
             <artifactId>flyway-database-postgresql</artifactId>
@@ -76,6 +75,10 @@
             <artifactId>h2</artifactId>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>com.fasterxml.jackson.datatype</groupId>
+            <artifactId>jackson-datatype-jsr310</artifactId>
+        </dependency>
     </dependencies>
 
     <build>
@@ -92,6 +95,27 @@
                     </excludes>
                 </configuration>
             </plugin>
+
+            <!--
+                ✅ ESTO ES LO QUE FALTABA — Annotation Processor de Lombok
+                Sin esto, Maven no procesa @Slf4j, @Builder, @Data, etc.
+                El compilador ve las clases sin los métodos/campos que genera Lombok
+                y falla con "cannot find symbol".
+            -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                    <annotationProcessorPaths>
+                        <path>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok</artifactId>
+                            <version>${lombok.version}</version>
+                        </path>
+                    </annotationProcessorPaths>
+                </configuration>
+            </plugin>
+
         </plugins>
     </build>
 </project>
