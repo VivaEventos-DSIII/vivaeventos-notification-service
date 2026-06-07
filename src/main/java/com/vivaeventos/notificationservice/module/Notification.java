@@ -43,4 +43,6 @@ public class Notification {
     private LocalDateTime scheduledAt;
 
     private LocalDateTime createdAt;
+
+    private UUID eventId;
 }
