@@ -11,5 +11,6 @@ public record TicketGeneradoEvent(
         String userName,
         String eventName,
         LocalDateTime eventDate,
-        String venue
+        String venue,
+        UUID eventId
 ) {}

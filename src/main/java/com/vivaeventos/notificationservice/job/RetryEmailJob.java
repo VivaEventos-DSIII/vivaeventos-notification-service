@@ -11,13 +11,12 @@ import org.springframework.stereotype.Component;
 import java.util.UUID;
 
 /**
- * Job de Quartz ejecutado 24h antes del evento.
- * Lee el ID del registro pre-creado (RETRY_SCHEDULED) y delega a sendRecordatorio,
- * que actualiza ese mismo registro en lugar de crear uno nuevo.
+ * Job de Quartz que reintenta el envío de una notificación fallida.
+ * Usa backoff exponencial definido en NotificationRetryProperties.
  */
 @Slf4j
 @Component
-public class ReminderJob implements Job {
+public class RetryEmailJob implements Job {
 
     @Autowired
     private NotificationService notificationService;
@@ -26,8 +25,7 @@ public class ReminderJob implements Job {
     public void execute(JobExecutionContext context) throws JobExecutionException {
         UUID notificationId = UUID.fromString(
                 context.getJobDetail().getJobDataMap().getString("notificationId"));
-        log.info("Ejecutando ReminderJob para notificación {}", notificationId);
+        log.info("Ejecutando RetryEmailJob para notificación {}", notificationId);
         notificationService.sendRecordatorio(notificationId);
-        log.info("ReminderJob completado para notificación {}", notificationId);
     }
 }

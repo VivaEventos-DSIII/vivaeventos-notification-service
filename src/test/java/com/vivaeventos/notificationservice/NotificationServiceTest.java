@@ -24,6 +24,7 @@ import org.springframework.mail.javamail.JavaMailSender;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -48,12 +49,12 @@ class NotificationServiceTest {
         orderId  = UUID.randomUUID();
         ticketId = UUID.randomUUID();
 
-        // FIX 2: save() devuelve una copia del objeto para que cada llamada
-        // sea independiente y podamos verificar el estado en cada save por separado
+        // save() devuelve una copia con ID generado, simulando comportamiento de BD
         when(notificationRepository.save(any(Notification.class)))
                 .thenAnswer(invocation -> {
                     Notification n = invocation.getArgument(0);
                     return Notification.builder()
+                            .id(UUID.randomUUID())
                             .recipientId(n.getRecipientId())
                             .recipientEmail(n.getRecipientEmail())
                             .type(n.getType())
@@ -68,24 +69,21 @@ class NotificationServiceTest {
                 });
 
         when(retryProperties.getMaxAttempts()).thenReturn(5);
+        when(retryProperties.getInitialDelayMs()).thenReturn(1000L);
+        when(retryProperties.getMultiplier()).thenReturn(2.0);
     }
 
     // ─────────────────────────────────────────────────────────────────────────
     // US-08: Confirmación de compra
-    // Criterio: "Dado que el pago es exitoso cuando la compra se confirma
-    //            entonces el sistema debe enviar un mensaje de confirmación."
     // ─────────────────────────────────────────────────────────────────────────
 
     @Test
     void dadoPagoConfirmado_cuandoSeEnviaConfirmacion_entoncesRecipientIdNuncaEsNull() {
-        // GIVEN
         PagoConfirmadoEvent event = new PagoConfirmadoEvent(
                 orderId, userId, "cliente@email.com", "Carlos López", BigDecimal.valueOf(85000));
 
-        // WHEN
         notificationService.sendConfirmacionCompra(event);
 
-        // THEN — recipient_id nunca debe ser null (constraint NOT NULL en BD)
         ArgumentCaptor<Notification> cap = ArgumentCaptor.forClass(Notification.class);
         verify(notificationRepository, atLeastOnce()).save(cap.capture());
         assertThat(cap.getAllValues().get(0).getRecipientId()).isNotNull();
@@ -94,14 +92,11 @@ class NotificationServiceTest {
 
     @Test
     void dadoPagoConfirmado_cuandoSeEnviaConfirmacion_entoncesEmailContieneOrdenYCliente() {
-        // GIVEN
         PagoConfirmadoEvent event = new PagoConfirmadoEvent(
                 orderId, userId, "cliente@email.com", "Carlos López", BigDecimal.valueOf(85000));
 
-        // WHEN
         notificationService.sendConfirmacionCompra(event);
 
-        // THEN
         ArgumentCaptor<SimpleMailMessage> emailCap = ArgumentCaptor.forClass(SimpleMailMessage.class);
         verify(mailSender).send(emailCap.capture());
         SimpleMailMessage email = emailCap.getValue();
@@ -113,14 +108,11 @@ class NotificationServiceTest {
 
     @Test
     void dadoPagoConfirmado_cuandoSeGuarda_entoncesEstadoCambiaDePendingASent() {
-        // GIVEN
         PagoConfirmadoEvent event = new PagoConfirmadoEvent(
                 orderId, userId, "cliente@email.com", "Carlos López", BigDecimal.valueOf(85000));
 
-        // WHEN
         notificationService.sendConfirmacionCompra(event);
 
-        // THEN — FIX 2: primer save PENDING, segundo save SENT (copias independientes)
         ArgumentCaptor<Notification> cap = ArgumentCaptor.forClass(Notification.class);
         verify(notificationRepository, times(2)).save(cap.capture());
         List<Notification> guardadas = cap.getAllValues();
@@ -129,14 +121,11 @@ class NotificationServiceTest {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // US-08: Ticket generado — detalles del evento
-    // Criterio: "Dado que el cliente revisa su confirmación
-    //            entonces debe ver los detalles del evento."
+    // US-08: Ticket generado — segundo criterio (detalles del evento)
     // ─────────────────────────────────────────────────────────────────────────
 
     @Test
     void dadoTicketGenerado_cuandoSeEnviaEmail_entoncesContieneNombreEventoFechaYLugar() {
-        // GIVEN
         TicketGeneradoEvent event = new TicketGeneradoEvent(
                 ticketId, orderId, userId,
                 "cliente@email.com", "Ana García",
@@ -144,10 +133,8 @@ class NotificationServiceTest {
                 LocalDateTime.of(2026, 8, 15, 18, 0),
                 "Parque Simón Bolívar");
 
-        // WHEN
         notificationService.sendTicketGenerado(event);
 
-        // THEN — verifica segundo criterio de US-08
         ArgumentCaptor<SimpleMailMessage> emailCap = ArgumentCaptor.forClass(SimpleMailMessage.class);
         verify(mailSender).send(emailCap.capture());
         String body = emailCap.getValue().getText();
@@ -157,15 +144,12 @@ class NotificationServiceTest {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // US-09: Recordatorio programado con email real del comprador
-    // Criterio: "Dado que el evento se aproxima cuando faltan 24 horas
-    //            entonces el sistema debe enviar un recordatorio."
+    // US-09: Programación del recordatorio
     // ─────────────────────────────────────────────────────────────────────────
 
     @Test
-    void dadoTicketFuturo_cuandoSeRecibe_entoncesSeProgramaJobConEmailRealDelComprador()
+    void dadoTicketFuturo_cuandoSeRecibe_entoncesSeProgramaJobEnQuartz()
             throws SchedulerException {
-        // GIVEN — evento en 5 días
         TicketGeneradoEvent event = new TicketGeneradoEvent(
                 ticketId, orderId, userId,
                 "comprador@email.com", "Ana García",
@@ -173,17 +157,14 @@ class NotificationServiceTest {
                 LocalDateTime.now().plusDays(5),
                 "Parque Simón Bolívar");
 
-        // WHEN
         notificationService.scheduleRecordatorioPorTicket(event);
 
-        // THEN
         verify(quartzScheduler, times(1)).scheduleJob(any(), any());
     }
 
     @Test
     void dadoTicketFuturo_cuandoSeProgramaRecordatorio_entoncesScheduledAtNuncaEsNull()
             throws SchedulerException {
-        // GIVEN
         TicketGeneradoEvent event = new TicketGeneradoEvent(
                 ticketId, orderId, userId,
                 "comprador@email.com", "Ana García",
@@ -191,10 +172,8 @@ class NotificationServiceTest {
                 LocalDateTime.now().plusDays(5),
                 "Parque Simón Bolívar");
 
-        // WHEN
         notificationService.scheduleRecordatorioPorTicket(event);
 
-        // THEN — scheduledAt debe estar poblado para trazabilidad
         ArgumentCaptor<Notification> cap = ArgumentCaptor.forClass(Notification.class);
         verify(notificationRepository).save(cap.capture());
         assertThat(cap.getValue().getScheduledAt()).isNotNull();
@@ -204,7 +183,6 @@ class NotificationServiceTest {
     @Test
     void dadoTicketEnMenos24Horas_cuandoSeRecibe_entoncesNOSeProgramaJob()
             throws SchedulerException {
-        // GIVEN — evento en 10 horas (menos de 24h)
         TicketGeneradoEvent event = new TicketGeneradoEvent(
                 ticketId, orderId, userId,
                 "comprador@email.com", "Ana García",
@@ -212,31 +190,29 @@ class NotificationServiceTest {
                 LocalDateTime.now().plusHours(10),
                 "Cualquier lugar");
 
-        // WHEN
         notificationService.scheduleRecordatorioPorTicket(event);
 
-        // THEN
         verify(quartzScheduler, never()).scheduleJob(any(), any());
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // US-09: Envío del recordatorio
-    // Criterio: "Dado que el cliente recibe el recordatorio
-    //            entonces debe ver información del evento."
+    // US-09: Envío del recordatorio — actualiza registro existente sin duplicar
     // ─────────────────────────────────────────────────────────────────────────
 
     @Test
     void dadoRecordatorio_cuandoSeEnvia_entoncesContieneInformacionDelEvento() {
-        // GIVEN
+        UUID notificationId = UUID.randomUUID();
         String eventName = "Concierto Rock en el Parque";
-        LocalDateTime eventDate = LocalDateTime.of(2026, 8, 15, 18, 0);
         String venue = "Parque Simón Bolívar";
 
-        // WHEN
-        notificationService.sendRecordatorio(userId, "comprador@email.com",
-                eventName, eventDate, venue);
+        Notification existente = notificationPreCreada(notificationId, userId,
+                "comprador@email.com",
+                "⏰ Recordatorio: mañana es " + eventName,
+                buildBodyConEvento(eventName, venue));
+        when(notificationRepository.findById(notificationId)).thenReturn(Optional.of(existente));
 
-        // THEN — criterio "el cliente debe ver información del evento"
+        notificationService.sendRecordatorio(notificationId);
+
         ArgumentCaptor<SimpleMailMessage> emailCap = ArgumentCaptor.forClass(SimpleMailMessage.class);
         verify(mailSender).send(emailCap.capture());
         String body = emailCap.getValue().getText();
@@ -247,56 +223,116 @@ class NotificationServiceTest {
 
     @Test
     void dadoRecordatorio_cuandoSeEnvia_entoncesRecipientIdNuncaEsNull() {
-        // WHEN
-        notificationService.sendRecordatorio(userId, "comprador@email.com",
-                "Concierto Rock", LocalDateTime.now().plusDays(1), "Bogotá");
+        UUID notificationId = UUID.randomUUID();
 
-        // THEN — recipient_id nunca null
+        Notification existente = notificationPreCreada(notificationId, userId,
+                "comprador@email.com", "⏰ Recordatorio", "Cuerpo del recordatorio");
+        when(notificationRepository.findById(notificationId)).thenReturn(Optional.of(existente));
+
+        notificationService.sendRecordatorio(notificationId);
+
         ArgumentCaptor<Notification> cap = ArgumentCaptor.forClass(Notification.class);
         verify(notificationRepository, atLeastOnce()).save(cap.capture());
         assertThat(cap.getAllValues().get(0).getRecipientId()).isNotNull();
         assertThat(cap.getAllValues().get(0).getRecipientId()).isEqualTo(userId);
     }
 
+    @Test
+    void dadoRecordatorio_cuandoSeEnviaExitosamente_entoncesActualizaRegistroExistente() {
+        UUID notificationId = UUID.randomUUID();
+
+        Notification existente = notificationPreCreada(notificationId, userId,
+                "comprador@email.com", "⏰ Recordatorio", "Cuerpo");
+        when(notificationRepository.findById(notificationId)).thenReturn(Optional.of(existente));
+
+        notificationService.sendRecordatorio(notificationId);
+
+        // Un solo save (el update del registro existente) — sin duplicados
+        verify(notificationRepository, times(1)).save(any());
+        ArgumentCaptor<Notification> cap = ArgumentCaptor.forClass(Notification.class);
+        verify(notificationRepository).save(cap.capture());
+        assertThat(cap.getValue().getStatus()).isEqualTo("SENT");
+        assertThat(cap.getValue().getAttempts()).isEqualTo(1);
+    }
+
     // ─────────────────────────────────────────────────────────────────────────
-    // Trazabilidad: email fallido queda como FAILED (RQ-04)
+    // RQ-04: Trazabilidad y reintentos con backoff exponencial
     // ─────────────────────────────────────────────────────────────────────────
 
     @Test
-    void dadoFalloDeEmail_cuandoSeEnviaConfirmacion_entoncesGuardaComoFailedSinLanzarExcepcion() {
-        // GIVEN — servidor de correo no disponible
+    void dadoFalloDeEmailConUnSoloIntento_cuandoFalla_entoncesGuardaComoFailed() {
+        // maxAttempts = 1: sin reintentos → FAILED inmediato
+        when(retryProperties.getMaxAttempts()).thenReturn(1);
         doThrow(new MailSendException("SMTP no disponible"))
                 .when(mailSender).send(any(SimpleMailMessage.class));
         PagoConfirmadoEvent event = new PagoConfirmadoEvent(
                 orderId, userId, "cliente@email.com", "Carlos López", BigDecimal.valueOf(85000));
 
-        // WHEN — no debe lanzar excepción (flujo de compra no se interrumpe)
         notificationService.sendConfirmacionCompra(event);
 
-        // THEN
         ArgumentCaptor<Notification> cap = ArgumentCaptor.forClass(Notification.class);
         verify(notificationRepository, times(2)).save(cap.capture());
         assertThat(cap.getAllValues().get(1).getStatus()).isEqualTo("FAILED");
         assertThat(cap.getAllValues().get(1).getErrorDetail()).isNotBlank();
     }
 
+    @Test
+    void dadoFalloDeEmailConReintentosDisponibles_cuandoFalla_entoncesEstadoEsRetryScheduled()
+            throws SchedulerException {
+        // maxAttempts = 5: primer fallo → RETRY_SCHEDULED
+        doThrow(new MailSendException("SMTP no disponible"))
+                .when(mailSender).send(any(SimpleMailMessage.class));
+        PagoConfirmadoEvent event = new PagoConfirmadoEvent(
+                orderId, userId, "cliente@email.com", "Carlos López", BigDecimal.valueOf(85000));
+
+        notificationService.sendConfirmacionCompra(event);
+
+        ArgumentCaptor<Notification> cap = ArgumentCaptor.forClass(Notification.class);
+        verify(notificationRepository, times(2)).save(cap.capture());
+        assertThat(cap.getAllValues().get(1).getStatus()).isEqualTo("RETRY_SCHEDULED");
+        // Quartz debe haber recibido el job de reintento
+        verify(quartzScheduler, times(1)).scheduleJob(any(), any());
+    }
+
     // ─────────────────────────────────────────────────────────────────────────
-    // maxAttempts viene de properties, no hardcodeado
+    // maxAttempts proviene de properties, no hardcodeado
     // ─────────────────────────────────────────────────────────────────────────
 
     @Test
     void dadaConfiguracion3Reintentos_cuandoSeCreaNot_entoncesMaxAttemptsEs3() {
-        // GIVEN
         when(retryProperties.getMaxAttempts()).thenReturn(3);
         PagoConfirmadoEvent event = new PagoConfirmadoEvent(
                 orderId, userId, "cliente@email.com", "Carlos", BigDecimal.valueOf(85000));
 
-        // WHEN
         notificationService.sendConfirmacionCompra(event);
 
-        // THEN
         ArgumentCaptor<Notification> cap = ArgumentCaptor.forClass(Notification.class);
         verify(notificationRepository, atLeastOnce()).save(cap.capture());
         assertThat(cap.getAllValues().get(0).getMaxAttempts()).isEqualTo(3);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Helpers
+    // ─────────────────────────────────────────────────────────────────────────
+
+    private Notification notificationPreCreada(UUID id, UUID recipientId,
+                                               String email, String subject, String body) {
+        return Notification.builder()
+                .id(id)
+                .recipientId(recipientId)
+                .recipientEmail(email)
+                .type("EVENT_REMINDER")
+                .subject(subject)
+                .body(body)
+                .status("RETRY_SCHEDULED")
+                .attempts(0)
+                .maxAttempts(5)
+                .scheduledAt(LocalDateTime.now().plusHours(1))
+                .createdAt(LocalDateTime.now())
+                .build();
+    }
+
+    private String buildBodyConEvento(String eventName, String venue) {
+        return "Detalles del evento:\n  • Evento: " + eventName + "\n  • Lugar:  " + venue;
     }
 }

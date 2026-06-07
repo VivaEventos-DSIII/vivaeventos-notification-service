@@ -7,7 +7,7 @@ public record EventoCanceladoEvent(
         UUID eventId,
         String eventName,
         LocalDateTime eventDate,
-        UUID userId,
-        String userEmail,
-        String userName
+        String venue,
+        UUID organizerId,
+        String reason
 ) {}

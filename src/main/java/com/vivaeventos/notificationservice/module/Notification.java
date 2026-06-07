@@ -17,6 +17,7 @@ public class Notification {
     @GeneratedValue
     private UUID id;
 
+    @Column(nullable = false)
     private UUID recipientId;
 
     private String recipientEmail;
@@ -42,4 +43,6 @@ public class Notification {
     private LocalDateTime scheduledAt;
 
     private LocalDateTime createdAt;
+
+    private UUID eventId;
 }
