@@ -15,7 +15,7 @@ import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import com.vivaeventos.notificationservice.dto.DevolucionConfirmadaEvent;
+import com.vivaeventos.notificationservice.dto.DevolucionSolicitadaEvent;
 
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -345,7 +345,7 @@ public class NotificationService {
     }
 
     @Transactional
-    public void sendConfirmacionDevolucion(DevolucionConfirmadaEvent event) {
+    public void sendConfirmacionDevolucion(DevolucionSolicitadaEvent event) {
         log.info("Enviando confirmación de devolución a {} para orden {}",
                 event.userEmail(), event.orderId());
         String subject = "💰 Solicitud de devolución registrada - VivaEventos";
@@ -357,9 +357,9 @@ public class NotificationService {
         sendEmail(saved, event.userEmail(), subject, body);
     }
 
-    private String buildDevolucionBody(DevolucionConfirmadaEvent event) {
+    private String buildDevolucionBody(DevolucionSolicitadaEvent event) {
         return String.format("""
-            Hola,
+            Hola %s,
 
             Hemos recibido tu solicitud de devolución. 💰
 
@@ -373,7 +373,7 @@ public class NotificationService {
 
             Equipo VivaEventos
             """,
-                event.orderId(), event.totalAmount(),
+                event.userName(), event.orderId(), event.totalAmount(),
                 event.reason(), event.requestedAt());
     }
 }

@@ -1,7 +1,7 @@
 package com.vivaeventos.notificationservice.consumer;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.vivaeventos.notificationservice.dto.DevolucionConfirmadaEvent;
+import com.vivaeventos.notificationservice.dto.DevolucionSolicitadaEvent;
 import com.vivaeventos.notificationservice.dto.EventoCanceladoEvent;
 import com.vivaeventos.notificationservice.dto.PagoConfirmadoEvent;
 import com.vivaeventos.notificationservice.dto.TicketGeneradoEvent;
@@ -76,8 +76,8 @@ public class NotificationConsumer {
     )
     public void onDevolucionSolicitada(String payload) {
         try {
-            DevolucionConfirmadaEvent event = objectMapper.readValue(
-                    payload, DevolucionConfirmadaEvent.class);
+            DevolucionSolicitadaEvent event = objectMapper.readValue(
+                    payload, DevolucionSolicitadaEvent.class);
             log.info("Evento recibido [order.refund-requested] orderId={}", event.orderId());
             notificationService.sendConfirmacionDevolucion(event);
         } catch (Exception e) {

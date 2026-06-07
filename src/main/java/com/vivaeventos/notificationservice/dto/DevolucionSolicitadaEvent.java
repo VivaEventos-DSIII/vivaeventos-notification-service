@@ -9,14 +9,15 @@ import java.util.UUID;
  * una solicitud de devolución.
  * Topic: order.refund-requested
  *
- * Contiene el email del cliente para enviarle la confirmación
+ * Contiene el email y nombre del cliente para enviarle la confirmación
  * y el monto para mostrarlo en el correo.
  */
-public record DevolucionConfirmadaEvent(
+public record DevolucionSolicitadaEvent(
         UUID orderId,
         UUID eventId,
         UUID customerId,
         String userEmail,
+        String userName,
         BigDecimal totalAmount,
         String reason,
         LocalDateTime requestedAt

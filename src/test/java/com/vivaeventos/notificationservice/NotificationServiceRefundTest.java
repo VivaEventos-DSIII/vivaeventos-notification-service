@@ -1,7 +1,7 @@
 package com.vivaeventos.notificationservice;
 
 import com.vivaeventos.notificationservice.config.NotificationRetryProperties;
-import com.vivaeventos.notificationservice.dto.DevolucionConfirmadaEvent;
+import com.vivaeventos.notificationservice.dto.DevolucionSolicitadaEvent;
 import com.vivaeventos.notificationservice.module.Notification;
 import com.vivaeventos.notificationservice.repository.NotificationRepository;
 import com.vivaeventos.notificationservice.service.NotificationService;
@@ -78,9 +78,10 @@ class NotificationServiceRefundTest {
     @Test
     void dadoDevolucionSolicitada_cuandoSeEnviaConfirmacion_entoncesEmailLlegaAlCliente() {
         // GIVEN
-        DevolucionConfirmadaEvent event = new DevolucionConfirmadaEvent(
+        DevolucionSolicitadaEvent event = new DevolucionSolicitadaEvent(
                 orderId, eventId, customerId,
                 "cliente@email.com",
+                "Cliente Test",
                 new BigDecimal("240000"),
                 "EVENTO_CANCELADO",
                 LocalDateTime.now()
@@ -99,9 +100,10 @@ class NotificationServiceRefundTest {
     @Test
     void dadoDevolucionSolicitada_cuandoSeEnviaConfirmacion_entoncesEmailContieneMontoYOrden() {
         // GIVEN
-        DevolucionConfirmadaEvent event = new DevolucionConfirmadaEvent(
+        DevolucionSolicitadaEvent event = new DevolucionSolicitadaEvent(
                 orderId, eventId, customerId,
                 "cliente@email.com",
+                "Cliente Test",
                 new BigDecimal("240000"),
                 "EVENTO_CANCELADO",
                 LocalDateTime.now()
@@ -122,9 +124,10 @@ class NotificationServiceRefundTest {
     @Test
     void dadoDevolucionSolicitada_cuandoSeGuarda_entoncesRecipientIdNuncaEsNull() {
         // GIVEN
-        DevolucionConfirmadaEvent event = new DevolucionConfirmadaEvent(
+        DevolucionSolicitadaEvent event = new DevolucionSolicitadaEvent(
                 orderId, eventId, customerId,
                 "cliente@email.com",
+                "Cliente Test",
                 new BigDecimal("240000"),
                 "EVENTO_CANCELADO",
                 LocalDateTime.now()
@@ -143,9 +146,10 @@ class NotificationServiceRefundTest {
     @Test
     void dadoDevolucionSolicitada_cuandoSeGuarda_entoncesEstadoCambiaDePendingASent() {
         // GIVEN
-        DevolucionConfirmadaEvent event = new DevolucionConfirmadaEvent(
+        DevolucionSolicitadaEvent event = new DevolucionSolicitadaEvent(
                 orderId, eventId, customerId,
                 "cliente@email.com",
+                "Cliente Test",
                 new BigDecimal("240000"),
                 "EVENTO_CANCELADO",
                 LocalDateTime.now()
@@ -167,9 +171,10 @@ class NotificationServiceRefundTest {
         // GIVEN
         doThrow(new MailSendException("SMTP no disponible"))
                 .when(mailSender).send(any(SimpleMailMessage.class));
-        DevolucionConfirmadaEvent event = new DevolucionConfirmadaEvent(
+        DevolucionSolicitadaEvent event = new DevolucionSolicitadaEvent(
                 orderId, eventId, customerId,
                 "cliente@email.com",
+                "Cliente Test",
                 new BigDecimal("240000"),
                 "EVENTO_CANCELADO",
                 LocalDateTime.now()
