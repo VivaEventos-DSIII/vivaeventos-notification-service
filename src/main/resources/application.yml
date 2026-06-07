@@ -75,3 +75,4 @@ kafka:
     order-confirmed: order.confirmed
     ticket-generated: ticket.generated
     event-cancelled: event.cancelled
+    order-refund-requested: order.refund-requested

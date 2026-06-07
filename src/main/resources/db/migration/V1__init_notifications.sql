@@ -7,7 +7,7 @@ CREATE TABLE notifications (
     recipient_id    UUID           NOT NULL,
     recipient_email VARCHAR(255)   NOT NULL,
     type            VARCHAR(100)   NOT NULL,
-    -- PURCHASE_CONFIRMATION | EVENT_REMINDER | EVENT_CANCELLED | REFUND_PROCESSED
+    -- PURCHASE_CONFIRMATION | EVENT_REMINDER | EVENT_CANCELLED | REFUND_CONFIRMATION
     subject         VARCHAR(255)   NOT NULL,
     body            TEXT           NOT NULL,
     status          VARCHAR(50)    NOT NULL DEFAULT 'PENDING',
