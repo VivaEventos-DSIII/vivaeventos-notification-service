@@ -22,7 +22,10 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.Date;
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -66,6 +69,7 @@ public class NotificationService {
                 event.userId(), event.userEmail(),
                 "TICKET_GENERATED", subject, body, null
         );
+        notification.setEventId(event.eventId());
         Notification saved = notificationRepository.save(notification);
         sendEmail(saved, event.userEmail(), subject, body);
 
@@ -140,17 +144,36 @@ public class NotificationService {
 
     @Transactional
     public void sendEventoCancelado(EventoCanceladoEvent event) {
-        log.info("Enviando aviso de cancelación de '{}' a {}", event.eventName(), event.userEmail());
+        log.info("Procesando cancelación de evento '{}'", event.eventName());
 
-        String subject = "❌ Evento cancelado: " + event.eventName();
-        String body = buildCancelacionBody(event);
+        List<Notification> tickets = notificationRepository
+                .findByEventIdAndType(event.eventId(), "TICKET_GENERATED");
 
-        Notification notification = buildNotification(
-                event.userId(), event.userEmail(),
-                "EVENT_CANCELLED", subject, body, null
-        );
-        Notification saved = notificationRepository.save(notification);
-        sendEmail(saved, event.userEmail(), subject, body);
+        if (tickets.isEmpty()) {
+            log.info("Evento '{}' cancelado sin compradores registrados — sin notificaciones a enviar",
+                    event.eventName());
+            return;
+        }
+
+        Map<UUID, Notification> byBuyer = tickets.stream()
+                .collect(Collectors.toMap(
+                        Notification::getRecipientId,
+                        n -> n,
+                        (a, b) -> a
+                ));
+
+        String subject = "Evento cancelado: " + event.eventName();
+        for (Notification buyer : byBuyer.values()) {
+            log.info("Enviando aviso de cancelación de '{}' a {}", event.eventName(), buyer.getRecipientEmail());
+            String body = buildCancelacionBody(buyer, event);
+            Notification notif = buildNotification(
+                    buyer.getRecipientId(), buyer.getRecipientEmail(),
+                    "EVENT_CANCELLED", subject, body, null
+            );
+            notif.setEventId(event.eventId());
+            Notification saved = notificationRepository.save(notif);
+            sendEmail(saved, buyer.getRecipientEmail(), subject, body);
+        }
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -308,15 +331,17 @@ public class NotificationService {
         );
     }
 
-    private String buildCancelacionBody(EventoCanceladoEvent event) {
+    private String buildCancelacionBody(Notification buyer, EventoCanceladoEvent event) {
         return String.format("""
-                Hola %s,
+                Hola,
 
                 Lamentamos informarte que el siguiente evento ha sido cancelado. ❌
 
                 Detalles:
-                  • Evento: %s
-                  • Fecha:  %s
+                  • Evento:  %s
+                  • Fecha:   %s
+                  • Lugar:   %s
+                  • Motivo:  %s
 
                 Si realizaste una compra, el organizador procesará la devolución.
 
@@ -324,7 +349,7 @@ public class NotificationService {
 
                 Equipo VivaEventos
                 """,
-                event.userName(), event.eventName(), event.eventDate()
+                event.eventName(), event.eventDate(), event.venue(), event.reason()
         );
     }
 }
