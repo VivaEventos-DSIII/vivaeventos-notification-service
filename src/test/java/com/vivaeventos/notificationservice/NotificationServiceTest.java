@@ -80,7 +80,8 @@ class NotificationServiceTest {
     @Test
     void dadoPagoConfirmado_cuandoSeEnviaConfirmacion_entoncesRecipientIdNuncaEsNull() {
         PagoConfirmadoEvent event = new PagoConfirmadoEvent(
-                orderId, userId, "cliente@email.com", "Carlos López", BigDecimal.valueOf(85000));
+                orderId, userId, "cliente@email.com", "Carlos López", BigDecimal.valueOf(85000),
+                null, "GENERAL", 1, BigDecimal.valueOf(85000), BigDecimal.ZERO, null);
 
         notificationService.sendConfirmacionCompra(event);
 
@@ -93,7 +94,8 @@ class NotificationServiceTest {
     @Test
     void dadoPagoConfirmado_cuandoSeEnviaConfirmacion_entoncesEmailContieneOrdenYCliente() {
         PagoConfirmadoEvent event = new PagoConfirmadoEvent(
-                orderId, userId, "cliente@email.com", "Carlos López", BigDecimal.valueOf(85000));
+                orderId, userId, "cliente@email.com", "Carlos López", BigDecimal.valueOf(85000),
+                null, "GENERAL", 1, BigDecimal.valueOf(85000), BigDecimal.ZERO, null);
 
         notificationService.sendConfirmacionCompra(event);
 
@@ -109,7 +111,8 @@ class NotificationServiceTest {
     @Test
     void dadoPagoConfirmado_cuandoSeGuarda_entoncesEstadoCambiaDePendingASent() {
         PagoConfirmadoEvent event = new PagoConfirmadoEvent(
-                orderId, userId, "cliente@email.com", "Carlos López", BigDecimal.valueOf(85000));
+                orderId, userId, "cliente@email.com", "Carlos López", BigDecimal.valueOf(85000),
+                null, "GENERAL", 1, BigDecimal.valueOf(85000), BigDecimal.ZERO, null);
 
         notificationService.sendConfirmacionCompra(event);
 
@@ -131,7 +134,7 @@ class NotificationServiceTest {
                 "cliente@email.com", "Ana García",
                 "Concierto Rock en el Parque",
                 LocalDateTime.of(2026, 8, 15, 18, 0),
-                "Parque Simón Bolívar");
+                "Parque Simón Bolívar", null);
 
         notificationService.sendTicketGenerado(event);
 
@@ -155,7 +158,7 @@ class NotificationServiceTest {
                 "comprador@email.com", "Ana García",
                 "Concierto Rock",
                 LocalDateTime.now().plusDays(5),
-                "Parque Simón Bolívar");
+                "Parque Simón Bolívar", null);
 
         notificationService.scheduleRecordatorioPorTicket(event);
 
@@ -170,7 +173,7 @@ class NotificationServiceTest {
                 "comprador@email.com", "Ana García",
                 "Concierto Rock",
                 LocalDateTime.now().plusDays(5),
-                "Parque Simón Bolívar");
+                "Parque Simón Bolívar", null);
 
         notificationService.scheduleRecordatorioPorTicket(event);
 
@@ -188,7 +191,7 @@ class NotificationServiceTest {
                 "comprador@email.com", "Ana García",
                 "Evento Urgente",
                 LocalDateTime.now().plusHours(10),
-                "Cualquier lugar");
+                "Cualquier lugar", null);
 
         notificationService.scheduleRecordatorioPorTicket(event);
 
@@ -266,7 +269,8 @@ class NotificationServiceTest {
         doThrow(new MailSendException("SMTP no disponible"))
                 .when(mailSender).send(any(SimpleMailMessage.class));
         PagoConfirmadoEvent event = new PagoConfirmadoEvent(
-                orderId, userId, "cliente@email.com", "Carlos López", BigDecimal.valueOf(85000));
+                orderId, userId, "cliente@email.com", "Carlos López", BigDecimal.valueOf(85000),
+                null, "GENERAL", 1, BigDecimal.valueOf(85000), BigDecimal.ZERO, null);
 
         notificationService.sendConfirmacionCompra(event);
 
@@ -283,7 +287,8 @@ class NotificationServiceTest {
         doThrow(new MailSendException("SMTP no disponible"))
                 .when(mailSender).send(any(SimpleMailMessage.class));
         PagoConfirmadoEvent event = new PagoConfirmadoEvent(
-                orderId, userId, "cliente@email.com", "Carlos López", BigDecimal.valueOf(85000));
+                orderId, userId, "cliente@email.com", "Carlos López", BigDecimal.valueOf(85000),
+                null, "GENERAL", 1, BigDecimal.valueOf(85000), BigDecimal.ZERO, null);
 
         notificationService.sendConfirmacionCompra(event);
 
@@ -302,7 +307,8 @@ class NotificationServiceTest {
     void dadaConfiguracion3Reintentos_cuandoSeCreaNot_entoncesMaxAttemptsEs3() {
         when(retryProperties.getMaxAttempts()).thenReturn(3);
         PagoConfirmadoEvent event = new PagoConfirmadoEvent(
-                orderId, userId, "cliente@email.com", "Carlos", BigDecimal.valueOf(85000));
+                orderId, userId, "cliente@email.com", "Carlos", BigDecimal.valueOf(85000),
+                null, "GENERAL", 1, BigDecimal.valueOf(85000), BigDecimal.ZERO, null);
 
         notificationService.sendConfirmacionCompra(event);
 

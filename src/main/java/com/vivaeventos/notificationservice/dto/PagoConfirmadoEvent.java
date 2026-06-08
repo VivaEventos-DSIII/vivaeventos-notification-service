@@ -8,5 +8,11 @@ public record PagoConfirmadoEvent(
         UUID userId,
         String userEmail,
         String userName,
-        BigDecimal amount
+        BigDecimal amount,
+        UUID eventId,
+        String ticketType,
+        int quantity,
+        BigDecimal unitPrice,
+        BigDecimal discountPct,
+        java.time.LocalDateTime confirmedAt
 ) {}
