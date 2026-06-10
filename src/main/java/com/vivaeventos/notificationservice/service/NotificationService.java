@@ -60,10 +60,10 @@ public class NotificationService {
 
     @Transactional
     public void sendTicketGenerado(TicketGeneradoEvent event) {
-        log.info("Enviando detalles de boleta a {} para ticket {}",
-                event.userEmail(), event.ticketId());
+        log.info("Enviando detalles de boleta(s) a {} para orden {}",
+                event.userEmail(), event.orderId());
 
-        String subject = "🎟️ Tu boleta está lista - " + event.eventName();
+        String subject = "🎟️ Tu(s) boleta(s) están listas - " + event.eventName();
         String body = buildTicketBody(event);
 
         Notification notification = buildNotification(
@@ -82,6 +82,10 @@ public class NotificationService {
     // ─────────────────────────────────────────────────────────────────────────
 
     public void scheduleRecordatorioPorTicket(TicketGeneradoEvent event) {
+        if (event.eventDate() == null) {
+            log.warn("No se programa recordatorio para orden {} — eventDate no disponible", event.orderId());
+            return;
+        }
         LocalDateTime triggerTime = event.eventDate().minusHours(24);
         if (triggerTime.isBefore(LocalDateTime.now())) {
             log.warn("Evento '{}' ocurre en menos de 24h, no se programa recordatorio",
@@ -91,7 +95,6 @@ public class NotificationService {
         log.info("Programando recordatorio para '{}' → comprador {} a las {}",
                 event.eventName(), event.userEmail(), triggerTime);
 
-        // Guardar primero para obtener el ID generado por la BD
         Notification pendiente = buildNotification(
                 event.userId(), event.userEmail(), "EVENT_REMINDER",
                 "⏰ Recordatorio: mañana es " + event.eventName(),
@@ -103,13 +106,11 @@ public class NotificationService {
 
         Date fireAt = Date.from(triggerTime.atZone(ZoneId.systemDefault()).toInstant());
         JobDetail job = JobBuilder.newJob(ReminderJob.class)
-                .withIdentity("reminder-" + event.ticketId(), "reminders")
-                // Almacenar el ID del registro existente — ReminderJob lo actualiza,
-                // no crea un segundo registro
+                .withIdentity("reminder-" + event.orderId(), "reminders")
                 .usingJobData("notificationId", saved.getId().toString())
                 .build();
         Trigger trigger = TriggerBuilder.newTrigger()
-                .withIdentity("trigger-reminder-" + event.ticketId(), "reminders")
+                .withIdentity("trigger-reminder-" + event.orderId(), "reminders")
                 .startAt(fireAt)
                 .build();
 
@@ -119,8 +120,8 @@ public class NotificationService {
                 quartzScheduler.scheduleJob(job, trigger);
                 log.info("Recordatorio programado para '{}' a las {}", event.eventName(), triggerTime);
             } catch (SchedulerException e) {
-                log.error("Error al programar recordatorio para ticket {}: {}",
-                        event.ticketId(), e.getMessage());
+                log.error("Error al programar recordatorio para orden {}: {}",
+                        event.orderId(), e.getMessage());
             }
         });
     }
@@ -289,25 +290,32 @@ public class NotificationService {
     }
 
     private String buildTicketBody(TicketGeneradoEvent event) {
+        StringBuilder codesBlock = new StringBuilder();
+        List<String> codes = event.ticketCodes();
+        for (int i = 0; i < codes.size(); i++) {
+            codesBlock.append(String.format("  • Boleta %d: %s%n", i + 1, codes.get(i)));
+        }
         return String.format("""
                 Hola %s,
 
-                Aquí está tu boleta para el evento. 🎟️
+                Aquí están tus boleta(s) para el evento. 🎟️
 
                 Detalles del evento:
-                  • Evento:  %s
-                  • Fecha:   %s
-                  • Lugar:   %s
-                  • Boleta:  %s
+                  • Evento: %s
+                  • Fecha:  %s
+                  • Lugar:  %s
 
+                Tus boleta(s):
+                %s
                 Presenta el código QR en la entrada del evento.
-                (El QR solo puede usarse una vez)
+                (Cada código solo puede usarse una vez)
 
                 ¡Nos vemos en el evento!
 
                 Equipo VivaEventos
                 """,
-                event.userName(), event.eventName(), event.eventDate(), event.venue(), event.ticketId()
+                event.userName(), event.eventName(), event.eventDate(), event.venue(),
+                codesBlock.toString()
         );
     }
 

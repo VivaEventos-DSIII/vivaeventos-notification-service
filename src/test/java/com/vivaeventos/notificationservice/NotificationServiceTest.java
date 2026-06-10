@@ -41,15 +41,14 @@ class NotificationServiceTest {
     @Mock private NotificationRetryProperties retryProperties;
     @InjectMocks private NotificationService notificationService;
 
-    private UUID userId, orderId, ticketId;
+    private UUID userId, orderId, eventId;
 
     @BeforeEach
     void setUp() {
-        userId   = UUID.randomUUID();
-        orderId  = UUID.randomUUID();
-        ticketId = UUID.randomUUID();
+        userId  = UUID.randomUUID();
+        orderId = UUID.randomUUID();
+        eventId = UUID.randomUUID();
 
-        // save() devuelve una copia con ID generado, simulando comportamiento de BD
         when(notificationRepository.save(any(Notification.class)))
                 .thenAnswer(invocation -> {
                     Notification n = invocation.getArgument(0);
@@ -130,11 +129,12 @@ class NotificationServiceTest {
     @Test
     void dadoTicketGenerado_cuandoSeEnviaEmail_entoncesContieneNombreEventoFechaYLugar() {
         TicketGeneradoEvent event = new TicketGeneradoEvent(
-                ticketId, orderId, userId,
+                orderId, eventId, userId,
                 "cliente@email.com", "Ana García",
                 "Concierto Rock en el Parque",
                 LocalDateTime.of(2026, 8, 15, 18, 0),
-                "Parque Simón Bolívar", null);
+                "Parque Simón Bolívar",
+                List.of("CODE-ABC123"));
 
         notificationService.sendTicketGenerado(event);
 
@@ -143,7 +143,7 @@ class NotificationServiceTest {
         String body = emailCap.getValue().getText();
         assertThat(body).contains("Concierto Rock en el Parque");
         assertThat(body).contains("Parque Simón Bolívar");
-        assertThat(body).contains(ticketId.toString());
+        assertThat(body).contains("CODE-ABC123");
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -154,11 +154,12 @@ class NotificationServiceTest {
     void dadoTicketFuturo_cuandoSeRecibe_entoncesSeProgramaJobEnQuartz()
             throws SchedulerException {
         TicketGeneradoEvent event = new TicketGeneradoEvent(
-                ticketId, orderId, userId,
+                orderId, eventId, userId,
                 "comprador@email.com", "Ana García",
                 "Concierto Rock",
                 LocalDateTime.now().plusDays(5),
-                "Parque Simón Bolívar", null);
+                "Parque Simón Bolívar",
+                List.of("CODE-ABC123"));
 
         notificationService.scheduleRecordatorioPorTicket(event);
 
@@ -169,11 +170,12 @@ class NotificationServiceTest {
     void dadoTicketFuturo_cuandoSeProgramaRecordatorio_entoncesScheduledAtNuncaEsNull()
             throws SchedulerException {
         TicketGeneradoEvent event = new TicketGeneradoEvent(
-                ticketId, orderId, userId,
+                orderId, eventId, userId,
                 "comprador@email.com", "Ana García",
                 "Concierto Rock",
                 LocalDateTime.now().plusDays(5),
-                "Parque Simón Bolívar", null);
+                "Parque Simón Bolívar",
+                List.of("CODE-ABC123"));
 
         notificationService.scheduleRecordatorioPorTicket(event);
 
@@ -187,11 +189,12 @@ class NotificationServiceTest {
     void dadoTicketEnMenos24Horas_cuandoSeRecibe_entoncesNOSeProgramaJob()
             throws SchedulerException {
         TicketGeneradoEvent event = new TicketGeneradoEvent(
-                ticketId, orderId, userId,
+                orderId, eventId, userId,
                 "comprador@email.com", "Ana García",
                 "Evento Urgente",
                 LocalDateTime.now().plusHours(10),
-                "Cualquier lugar", null);
+                "Cualquier lugar",
+                List.of("CODE-ABC123"));
 
         notificationService.scheduleRecordatorioPorTicket(event);
 
@@ -250,7 +253,6 @@ class NotificationServiceTest {
 
         notificationService.sendRecordatorio(notificationId);
 
-        // Un solo save (el update del registro existente) — sin duplicados
         verify(notificationRepository, times(1)).save(any());
         ArgumentCaptor<Notification> cap = ArgumentCaptor.forClass(Notification.class);
         verify(notificationRepository).save(cap.capture());
@@ -264,7 +266,6 @@ class NotificationServiceTest {
 
     @Test
     void dadoFalloDeEmailConUnSoloIntento_cuandoFalla_entoncesGuardaComoFailed() {
-        // maxAttempts = 1: sin reintentos → FAILED inmediato
         when(retryProperties.getMaxAttempts()).thenReturn(1);
         doThrow(new MailSendException("SMTP no disponible"))
                 .when(mailSender).send(any(SimpleMailMessage.class));
@@ -283,7 +284,6 @@ class NotificationServiceTest {
     @Test
     void dadoFalloDeEmailConReintentosDisponibles_cuandoFalla_entoncesEstadoEsRetryScheduled()
             throws SchedulerException {
-        // maxAttempts = 5: primer fallo → RETRY_SCHEDULED
         doThrow(new MailSendException("SMTP no disponible"))
                 .when(mailSender).send(any(SimpleMailMessage.class));
         PagoConfirmadoEvent event = new PagoConfirmadoEvent(
@@ -295,7 +295,6 @@ class NotificationServiceTest {
         ArgumentCaptor<Notification> cap = ArgumentCaptor.forClass(Notification.class);
         verify(notificationRepository, times(2)).save(cap.capture());
         assertThat(cap.getAllValues().get(1).getStatus()).isEqualTo("RETRY_SCHEDULED");
-        // Quartz debe haber recibido el job de reintento
         verify(quartzScheduler, times(1)).scheduleJob(any(), any());
     }
 

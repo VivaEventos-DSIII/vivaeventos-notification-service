@@ -42,7 +42,7 @@ public class NotificationConsumer {
     public void onTicketGenerado(String payload) {
         try {
             TicketGeneradoEvent event = objectMapper.readValue(payload, TicketGeneradoEvent.class);
-            log.info("Evento recibido [ticket.generated] ticketId={}", event.ticketId());
+            log.info("Evento recibido [ticket.generated] orderId={}", event.orderId());
             notificationService.sendTicketGenerado(event);
         } catch (Exception e) {
             log.error("Error procesando [ticket.generated]: {}", e.getMessage());
